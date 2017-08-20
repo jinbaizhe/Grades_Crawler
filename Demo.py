@@ -11,7 +11,8 @@ logging.basicConfig(level=logging.INFO)
 
 def print_subejectInfo(text,width,align=0):
     if len(text)>width:
-        raise "函数参数错误(输出字符宽度小于字符长度)"
+        print(text,end='')
+        return
     numOfChinese=len(re.findall('[\u4e00-\u9fa5]',text))
     numOfOthers = len(text) - numOfChinese
     if align==0:
