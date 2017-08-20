@@ -83,7 +83,6 @@ data = urllib.parse.urlencode(postData).encode(encoding='utf-8')
 # 构造request请求
 request = urllib.request.Request(firstPostUrl, data, headers)
 response = opener.open(request)
-#至此登录第一层完成
 
 #获取viewstate
 headers = {
@@ -99,7 +98,11 @@ headers = {
 }
 # 构造request请求
 request = urllib.request.Request("http://jwxt.zust.edu.cn.ez.zust.edu.cn/",headers=headers)
-response=opener.open(request)
+try:
+    response = opener.open(request)
+except urllib.error.HTTPError:
+    print("身份证后六位数字不正确,请重试")
+    exit()
 result = response.read().decode()
 pattern=r'<input type="hidden" name="__VIEWSTATE" value="(.*?)"'
 viewstate=re.findall(pattern,result)[0]
@@ -110,7 +113,7 @@ picture = opener.open(captchaUrl_jwxt).read()
 local = open(sys.path[0]+'\\CheckCode.gif', 'wb')
 local.write(picture)
 local.close()
-secretCode = input('请输入验证码(验证码图片保存在路径"'+sys.path[0]+'\\CheckCode.gif'+'"下):')
+secretCode = input('请输入验证码(验证码图片在"'+sys.path[0]+'\\CheckCode.gif'+'"下):')
 # 根据抓包信息 构造表单
 postData_jwxt = {
     '__VIEWSTATE': viewstate,
@@ -143,7 +146,11 @@ response=opener.open(request_jwxt)
 result = response.read().decode()
 #获得查询成绩的链接
 pattern_info='<span id="xhxm">\d*\s*(\w*)</span></em>'
-urlName=urllib.request.quote(re.findall(pattern_info,result)[0])
+try:
+    urlName = urllib.request.quote(re.findall(pattern_info, result)[0])
+except IndexError:#查找不到姓名信息，即登录失败，验证码或教务系统密码不正确
+    print("验证码或教务系统密码不正确,请重试")
+    exit()
 url_cjcx='http://jwxt.zust.edu.cn.ez.zust.edu.cn/xscj_gc.aspx?xh='+username+'&xm='+urlName+'&gnmkdm=N121616'
 
 #获取__VIEWSTATE和__VIEWSTATEGENERATOR
