@@ -9,6 +9,18 @@ import logging
 import sys,os
 logging.basicConfig(level=logging.INFO)
 
+def print_subejectInfo(text,width,align=0):
+    if len(text)>width:
+        raise "函数参数错误(输出字符宽度小于字符长度)"
+    numOfChinese=len(re.findall('[\u4e00-\u9fa5]',text))
+    numOfOthers = len(text) - numOfChinese
+    if align==0:
+        print(text,end='')
+        print(' '*(width*2-numOfOthers-numOfChinese*2),end='')
+    else:
+        print(' '*(width*2-numOfOthers-numOfChinese*2),end='')
+        print(text,end='')
+
 cookie = http.cookiejar.CookieJar()
 handler = urllib.request.HTTPCookieProcessor(cookie)
 opener = urllib.request.build_opener(handler)
@@ -195,9 +207,13 @@ table=re.sub(r'&nbsp;',' ',table)
 
 for item in re.findall(pattern_subjectItem,table,re.DOTALL):
     subjectList.append(re.findall(pattern_subjectInfo,item))
+for item in tableHeadList:
+    print_subejectInfo(item, 16, 0)
+print()
 for subject in subjectList:
-    print(",".join(subject))
-
+    for item in subject:
+        print_subejectInfo(item, 16, 0)
+    print()
 numOfSubject = '共'+ str(len(subjectList))+'门课'
 print(numOfSubject)
 
@@ -224,3 +240,4 @@ def sendEmail(host_server, sender_qq, pwd, sender_qq_mail, receiver_mail, mail_t
     smtp.sendmail(sender_qq_mail, receiver_mail, msg.as_string())
     smtp.quit()
     logging.info('邮件发送成功')
+
