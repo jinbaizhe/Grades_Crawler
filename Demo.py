@@ -33,6 +33,8 @@ config_path=sys.path[0]+'\\config.txt'
 username=''
 password=''
 password_jwxt=''
+year='2016-2017'
+term='2'
 autoLogin=False
 if os.path.isfile(config_path):
     with open(config_path,'r') as f:
@@ -174,8 +176,8 @@ viewstate=(re.findall(pattern_viewstate,result))[0]
 # 根据抓包信息 构造表单
 postData_cjcx = {
     '__VIEWSTATE': viewstate,
-    'ddlXN': '2016-2017',
-    'ddlXQ': '2',
+    'ddlXN': year,
+    'ddlXQ': term,
     'Button1': '按学期查询',
 }
 # 根据抓包信息 构造headers
@@ -192,14 +194,14 @@ headers_cjcx = {
     'Upgrade-Insecure-Requests': '1',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36',
 }
-logging.info("开始查询成绩")
+#logging.info("开始查询成绩")
 # 生成post数据
 data_cjcx = urllib.parse.urlencode(postData_cjcx).encode()
 # 构造request请求
 request_cjcx = urllib.request.Request(url_cjcx, data_cjcx, headers_cjcx)
 response = opener.open(request_cjcx)
 result_cjcx = response.read().decode('utf-8')
-logging.info("查询成绩成功")
+#logging.info("查询成绩成功")
 
 # 开始分析数据
 pattern_table=r'<table class="datelist"(.*?)</table>'
@@ -212,9 +214,9 @@ tableHead=re.search(pattern_tableHead,table,re.DOTALL).group()
 tableHeadList=re.findall(r'<td>(.*?)</td>',tableHead)
 subjectList=[]
 table=re.sub(r'&nbsp;',' ',table)
-
 for item in re.findall(pattern_subjectItem,table,re.DOTALL):
     subjectList.append(re.findall(pattern_subjectInfo,item))
+print(year,"学年第",term,"学期")
 for item in tableHeadList:
     print_subejectInfo(item, 16, 0)
 print()
