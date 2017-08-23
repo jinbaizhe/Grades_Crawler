@@ -7,6 +7,7 @@ from email.header import Header
 from smtplib import SMTP_SSL
 import logging
 import sys,os
+import pickle
 logging.basicConfig(level=logging.INFO)
 
 def print_subejectInfo(text,width,align=0):
@@ -29,40 +30,30 @@ opener = urllib.request.build_opener(handler)
 firstPostUrl = "http://ez.zust.edu.cn/login"
 captchaUrl_jwxt = "http://jwxt.zust.edu.cn.ez.zust.edu.cn/CheckCode.aspx"
 postUrl_jwxt = "http://jwxt.zust.edu.cn.ez.zust.edu.cn/default2.aspx"
-config_path=sys.path[0]+'\\config.txt'
-username=''
-password=''
-password_jwxt=''
+info=dict()
 year='2016-2017'
 term='2'
 autoLogin=False
+config_path='config.pcl'
 if os.path.isfile(config_path):
-    with open(config_path,'r') as f:
-        info=f.read()
-    if re.search(r'(?<=username:)(.*)', info):
-        username = re.search(r'(?<=username:)(.*)', info).group()
-    if re.search(r'(?<=password:)(.*)', info):
-        password = re.search(r'(?<=password:)(.*)', info).group()
-    if re.search(r'(?<=password_jwxt:)(.*)', info):
-        password_jwxt = re.search(r'(?<=password_jwxt:)(.*)', info).group()
-    if len(username) > 0 and len(password) > 0 and len(password_jwxt) > 0:
-        print('已检测到保存过的学号信息:' + username)
+    with open(config_path,'rb') as f:
+        info=pickle.load(f)
+    if len(info['username']) > 0 and len(info['password']) > 0 and len(info['password_jwxt']) > 0:
+        print('已检测到保存过的学号信息:' + info['username'])
         temp=input('是否用此学号登录?(y/n):')
-        if ( temp== 'y' or temp=='Y'):
+        if (temp in ['y','Y']):
             autoLogin=True
 if not autoLogin:
-    username = input('请输入学号:')
-    password = input('请输入身份证号码后六位:')
-    password_jwxt = input('请输入教务系统密码:')
-    # 保存账号信息到config.txt中
-    with open(config_path, 'w') as f:
-        print('username:' + username, file=f)
-        print('password:' + password, file=f)
-        print('password_jwxt:' + password_jwxt, file=f)
+    info['username'] = input('请输入学号:')
+    info['password'] = input('请输入身份证号码后六位:')
+    info['password_jwxt'] = input('请输入教务系统密码:')
+    # 保存账号信息到config.pcl中
+    with open(config_path, 'wb') as f:
+        pickle.dump(info,f)
 
 postData = {
-        'user': username,
-        'pass': password,
+        'user': info['username'],
+        'pass': info['password'],
         'inputCode': '1234',
         'url': 'http://jwxt.zust.edu.cn/',
     }
@@ -116,12 +107,12 @@ picture = opener.open(captchaUrl_jwxt).read()
 local = open(sys.path[0]+'\\CheckCode.gif', 'wb')
 local.write(picture)
 local.close()
-secretCode = input('请输入验证码(验证码图片在"'+sys.path[0]+'\\CheckCode.gif'+'"下):')
+secretCode = input('请输入验证码(验证码图片(CheckCode.gif)在"'+sys.path[0]+'\\"下):')
 # 根据抓包信息 构造表单
 postData_jwxt = {
     '__VIEWSTATE': viewstate,
-    'TextBox1': username,
-    'TextBox2': password_jwxt,
+    'TextBox1': info['username'],
+    'TextBox2': info['password_jwxt'],
     'TextBox3': secretCode,
     'RadioButtonList1': '学生',
     'Button1': '',
@@ -154,7 +145,7 @@ try:
 except IndexError:#查找不到姓名信息，即登录失败，验证码或教务系统密码不正确
     print("验证码或教务系统密码不正确,请重试")
     exit()
-url_cjcx='http://jwxt.zust.edu.cn.ez.zust.edu.cn/xscj_gc.aspx?xh='+username+'&xm='+urlName+'&gnmkdm=N121616'
+url_cjcx='http://jwxt.zust.edu.cn.ez.zust.edu.cn/xscj_gc.aspx?xh='+info['username']+'&xm='+urlName+'&gnmkdm=N121616'
 
 #获取__VIEWSTATE和__VIEWSTATEGENERATOR
 headers = {
@@ -163,7 +154,7 @@ headers = {
     'Accept-Language': 'zh-CN,zh;q=0.8',
     'Connection': 'keep-alive',
     'Host': 'jwxt.zust.edu.cn.ez.zust.edu.cn',
-    'Referer': 'http://jwxt.zust.edu.cn.ez.zust.edu.cn/xs_main.aspx?xh='+username,
+    'Referer': 'http://jwxt.zust.edu.cn.ez.zust.edu.cn/xs_main.aspx?xh='+info['username'],
     'Upgrade-Insecure-Requests': '1',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36',
 }
