@@ -10,7 +10,7 @@ import sys,os
 import pickle
 logging.basicConfig(level=logging.INFO)
 
-def print_subejectInfo(text,width,align=0):
+def print_align(text,width,align=0):
     if len(text)>width:
         print(text,end='')
         return
@@ -22,6 +22,14 @@ def print_subejectInfo(text,width,align=0):
     else:
         print(' '*(width*2-numOfOthers-numOfChinese*2),end='')
         print(text,end='')
+
+def print_subejectInfo(subjectList):
+    for i in range(int(len(subjectList))):
+        if i == 3:
+            print_align(subjectList[i], 15, 0)
+        elif i in [6, 7, 8]:
+            print_align(subjectList[i], 5, 0)
+    print()
 
 cookie = http.cookiejar.CookieJar()
 handler = urllib.request.HTTPCookieProcessor(cookie)
@@ -204,19 +212,19 @@ table=re.search(pattern_table,result_cjcx,re.DOTALL).group()
 tableHead=re.search(pattern_tableHead,table,re.DOTALL).group()
 tableHeadList=re.findall(r'<td>(.*?)</td>',tableHead)
 subjectList=[]
-table=re.sub(r'&nbsp;',' ',table)
+table=re.sub(r'&nbsp;', ' ', table)
 for item in re.findall(pattern_subjectItem,table,re.DOTALL):
     subjectList.append(re.findall(pattern_subjectInfo,item))
-print(year,"学年第",term,"学期")
-for item in tableHeadList:
-    print_subejectInfo(item, 16, 0)
-print()
+print(year, "学年第", term, "学期")
+print_subejectInfo(tableHeadList)
+point=0.0
+sumPoint=0.0
 for subject in subjectList:
-    for item in subject:
-        print_subejectInfo(item, 16, 0)
-    print()
-numOfSubject = '共'+ str(len(subjectList))+'门课'
-print(numOfSubject)
+    print_subejectInfo(subject)
+    point += float(subject[7])*float(subject[6])
+    sumPoint += float(subject[6])
+numOfSubject = '共' + str(len(subjectList))+'门课'
+print(numOfSubject,"平均绩点:%.2f" % (point/(sumPoint*5)*5))
 
 def sendEmail(host_server, sender_qq, pwd, sender_qq_mail, receiver_mail, mail_title, mail_content):
     logging.info('开始发送邮件')
