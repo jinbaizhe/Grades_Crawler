@@ -107,7 +107,7 @@ except urllib.error.HTTPError:
     exit()
 result = response.read().decode()
 pattern=r'<input type="hidden" name="__VIEWSTATE" value="(.*?)"'
-viewstate=re.findall(pattern,result)[0]
+viewstate=re.search(pattern,result).group(1)
 
 #开始登录第二层
 picture = opener.open(captchaUrl_jwxt).read()
@@ -149,7 +149,7 @@ result = response.read().decode()
 #获得查询成绩的链接
 pattern_info='<span id="xhxm">\d*\s*(\w*)</span></em>'
 try:
-    urlName = urllib.request.quote(re.findall(pattern_info, result)[0])
+    urlName = urllib.request.quote(re.search(pattern_info, result).group(1))
 except IndexError:#查找不到姓名信息，即登录失败，验证码或教务系统密码不正确
     print("验证码或教务系统密码不正确,请重试")
     exit()
@@ -170,7 +170,7 @@ request = urllib.request.Request(url_cjcx,headers=headers)
 response=opener.open(request)
 result = response.read().decode()
 pattern_viewstate=r'<input type="hidden" name="__VIEWSTATE" value="(.*?)"'
-viewstate=(re.findall(pattern_viewstate,result))[0]
+viewstate=re.search(pattern_viewstate,result).group(1)
 
 # 根据抓包信息 构造表单
 postData_cjcx = {
@@ -203,7 +203,7 @@ result_cjcx = response.read().decode('utf-8')
 #logging.info("查询成绩成功")
 
 # 开始分析数据
-pattern_table=r'<table class="datelist"(.*?)</table>'
+pattern_table=r'<table class="datelist" cellspacing="0" cellpadding="3" border="0" id="Datagrid1" width="100%">(.*?)</table>'
 pattern_tableHead=r'<tr class="datelisthead">(.*?)</tr>'
 pattern_subjectItem=r'(?:<tr>|<tr class="alt">)(.*?)</tr>'
 pattern_subjectInfo=r'<td>(.*?)</td>'
