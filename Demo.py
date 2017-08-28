@@ -8,8 +8,11 @@ from smtplib import SMTP_SSL
 import logging
 import sys,os
 import pickle
+from PIL import Image
 logging.basicConfig(level=logging.INFO)
-
+def debug_printResult(result,output):
+    with open(output,'w') as f:
+        print(result,file=f)
 def print_align(text,width,align=0):
     if len(text)>width:
         print(text,end='')
@@ -53,7 +56,7 @@ if os.path.isfile(config_path):
             autoLogin=True
 if not autoLogin:
     info['username'] = input('请输入学号:')
-    info['password'] = input('请输入身份证号码后六位:')
+    info['password'] = input('请输入统一身份认证密码(默认为身份证后六位):')
     info['password_jwxt'] = input('请输入教务系统密码:')
     # 保存账号信息到config.pcl中
     with open(config_path, 'wb') as f:
@@ -85,7 +88,11 @@ data = urllib.parse.urlencode(postData).encode(encoding='utf-8')
 # 构造request请求
 request = urllib.request.Request(firstPostUrl, data, headers)
 response = opener.open(request)
-
+result=response.read().decode('utf-8','ignore')
+match=re.search(r'(?:<DIV id="errmsg".*?>(.*?)</DIV>)',result)
+if match:
+    print(match.group(1))
+    exit()
 #获取viewstate
 headers = {
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
@@ -100,11 +107,7 @@ headers = {
 }
 # 构造request请求
 request = urllib.request.Request("http://jwxt.zust.edu.cn.ez.zust.edu.cn/",headers=headers)
-try:
-    response = opener.open(request)
-except urllib.error.HTTPError:
-    print("身份证后六位数字不正确,请重试")
-    exit()
+response = opener.open(request)
 result = response.read().decode()
 pattern=r'<input type="hidden" name="__VIEWSTATE" value="(.*?)"'
 viewstate=re.search(pattern,result).group(1)
@@ -115,6 +118,8 @@ picture = opener.open(captchaUrl_jwxt).read()
 local = open(sys.path[0]+'\\CheckCode.gif', 'wb')
 local.write(picture)
 local.close()
+image=Image.open('CheckCode.gif')
+image.show()
 secretCode = input('请输入验证码(验证码图片(CheckCode.gif)在"'+sys.path[0]+'\\"下):')
 # 根据抓包信息 构造表单
 postData_jwxt = {
@@ -146,13 +151,13 @@ data_jwxt = urllib.parse.urlencode(postData_jwxt).encode(encoding='utf-8')
 request_jwxt = urllib.request.Request(postUrl_jwxt, data_jwxt, headers_jwxt)
 response=opener.open(request_jwxt)
 result = response.read().decode()
+match=re.search(r"<script.*?>alert\('(.*?)'\);</script>",result)
+if match and len(match.group(1))<15:
+    print(match.group(1))
+    exit()
 #获得查询成绩的链接
 pattern_info='<span id="xhxm">\d*\s*(\w*)</span></em>'
-try:
-    urlName = urllib.request.quote(re.search(pattern_info, result).group(1))
-except IndexError:#查找不到姓名信息，即登录失败，验证码或教务系统密码不正确
-    print("验证码或教务系统密码不正确,请重试")
-    exit()
+urlName = urllib.request.quote(re.search(pattern_info, result).group(1))
 url_cjcx='http://jwxt.zust.edu.cn.ez.zust.edu.cn/xscj_gc.aspx?xh='+info['username']+'&xm='+urlName+'&gnmkdm=N121616'
 
 #获取__VIEWSTATE和__VIEWSTATEGENERATOR
