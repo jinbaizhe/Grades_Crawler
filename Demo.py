@@ -32,7 +32,6 @@ def print_subejectInfo(subjectList):
 def getLoginInfo():
     info = dict()
     autoLogin = False
-    config_path = 'config.pcl'
     if os.path.isfile(config_path):
         with open(config_path, 'rb') as f:
             info = pickle.load(f)
@@ -45,9 +44,6 @@ def getLoginInfo():
         info['username'] = input('请输入学号:')
         info['password'] = input('请输入统一身份认证密码(默认为身份证后六位):')
         info['password_jwxt'] = input('请输入教务系统密码:')
-        # 保存账号信息到config.pcl中
-        with open(config_path, 'wb') as f:
-            pickle.dump(info, f)
     return info
 def login(info):
     postData = {
@@ -79,7 +75,7 @@ def login(info):
     match = re.search(r'(?:<DIV id="errmsg".*?>(.*?)</DIV>)', result)
     if match:
         print(match.group(1))
-        exit()
+        return False
     return result
 def getViewState():
     # 获取viewstate
@@ -141,7 +137,7 @@ def loginJWXT(info):
     match = re.search(r"<script.*?>alert\('(.*?)'\);</script>", result)
     if match and len(match.group(1)) < 15:
         print(match.group(1))
-        exit()
+        return False
     return result
 def getUrlName(result):
     pattern_info = '<span id="xhxm">\d*\s*(\w*)</span></em>'
@@ -244,11 +240,27 @@ def sendEmail(host_server, sender_qq, pwd, sender_qq_mail, receiver_mail, mail_t
 cookie = http.cookiejar.CookieJar()
 handler = urllib.request.HTTPCookieProcessor(cookie)
 opener = urllib.request.build_opener(handler)
+config_path = 'config.pcl'
 year='2016-2017'
 term='2'
 info=getLoginInfo()
-login(info)
-result=loginJWXT(info)
-urlName=getUrlName(result)
-gradePage=getGradePage(urlName)
-parseGradesPage(gradePage)
+state=login(info)
+while state == False:
+    info['username'] = input('请重新输入学号:')
+    info['password'] = input('请重新输入统一身份认证密码(默认为身份证后六位):')
+    state = login(info)
+while True:
+    select = input("1.查询成绩\n2.查询图书馆借书情况(尚未完成)\n3.切换账号(尚未完成)\n4.退出\n")
+    if select == '1':
+        state = loginJWXT(info)
+        while state == False:
+            info['password_jwxt'] = input('请重新输入教务系统密码:')
+            state = loginJWXT(info)
+        urlName = getUrlName(state)
+        gradePage = getGradePage(urlName)
+        parseGradesPage(gradePage)
+        # 保存账号信息到config.pcl中
+    elif select == '4':
+        break
+with open(config_path, 'wb') as f:
+    pickle.dump(info, f)
