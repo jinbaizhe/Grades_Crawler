@@ -1,5 +1,5 @@
 import urllib,http.cookiejar
-import sys,os,logging,pickle
+import sys,os,logging,pickle,threading,time
 import re
 from urllib.request import urlopen
 from email.mime.text import MIMEText
@@ -201,6 +201,7 @@ def parseGradesPage(result_cjcx):
     tableHead = re.search(pattern_tableHead, table, re.DOTALL).group()
     tableHeadList = re.findall(r'<td>(.*?)</td>', tableHead)
     subjectList = []
+    subjectMap=dict()
     table = re.sub(r'&nbsp;', ' ', table)
     for item in re.findall(pattern_subjectItem, table, re.DOTALL):
         subjectList.append(re.findall(pattern_subjectInfo, item))
@@ -212,8 +213,27 @@ def parseGradesPage(result_cjcx):
         print_subejectInfo(subject)
         point += float(subject[7]) * float(subject[6])
         sumPoint += float(subject[6])
+        subjectMap[subject[3]]=subject[6:9]
     numOfSubject = '共' + str(len(subjectList)) + '门课'
     print(numOfSubject, "平均绩点:%.2f" % (point / (sumPoint * 5) * 5))
+    return subjectMap
+def getGrade(state,info):
+    while state == False:
+        info['password_jwxt'] = input('请输入教务系统密码:')
+        state = loginJWXT(info)
+    urlName = getUrlName(state)
+    gradePage = getGradePage(urlName)
+    subjectMap = parseGradesPage(gradePage)
+    return subjectMap
+def getGradeThread(state,info,subjectMap):
+    tempMap = getGrade(state,info)
+    if len(subjectMap)<len(tempMap):
+        for item in tempMap.keys():
+            if(item not in subjectMap.keys()):
+                #sendEmail
+                print("新出了一门课的成绩："+item+":",tempMap[item])
+                subjectMap[item]=tempMap[item]
+    time.sleep(3*60)
 def sendEmail(host_server, sender_qq, pwd, sender_qq_mail, receiver_mail, mail_title, mail_content):
     logging.info('开始发送邮件')
     # qq邮箱smtp服务器
@@ -249,18 +269,17 @@ while state == False:
     info['username'] = input('请重新输入学号:')
     info['password'] = input('请重新输入统一身份认证密码(默认为身份证后六位):')
     state = login(info)
+state = False#是否已登录教务系统的状态
 while True:
-    select = input("1.查询成绩\n2.查询图书馆借书情况(尚未完成)\n3.切换账号(尚未完成)\n4.退出\n")
+    select = input("1.查询成绩\n2.查询图书馆借书情况(尚未完成)\n3.开启成绩监控\n4.切换账号(尚未完成)\n5.退出\n")
     if select == '1':
-        state = loginJWXT(info)
-        while state == False:
-            info['password_jwxt'] = input('请重新输入教务系统密码:')
-            state = loginJWXT(info)
-        urlName = getUrlName(state)
-        gradePage = getGradePage(urlName)
-        parseGradesPage(gradePage)
-        # 保存账号信息到config.pcl中
+        getGrade(state,info)
+    elif select == '3':
+        subjectMap = getGrade(state,info)
+        t = threading.Thread(target=getGradeThread,args=(state,info,subjectMap))
+        t.start()
     elif select == '4':
         break
+# 保存账号信息到config.pcl中
 with open(config_path, 'wb') as f:
     pickle.dump(info, f)
