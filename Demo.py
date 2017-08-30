@@ -22,14 +22,28 @@ def print_align(text,width,align=0):
     else:
         print(' '*(width*2-numOfOthers-numOfChinese*2),end='')
         print(text,end='')
-def print_subejectInfo(subjectDict):
-    print(year, "学年第", term, "学期")
-    for name in subjectDict.keys():
-        print_align(name, 15, 0)
-        for item in subjectDict[name]:
+def print_subejectInfo(tableHeadList,subjectList,printToScreen):
+    point = 0.0
+    sumPoint = 0.0
+    subjectMap=dict()
+    numOfSubject = '共' + str(len(subjectList)) + '门课'
+    for subject in subjectList:
+        subjectMap[subject[3]] = subject[6:9]
+        point += float(subject[7]) * float(subject[6])
+        sumPoint += float(subject[6])
+    if printToScreen:
+        print(year, "学年第", term, "学期")
+        print_align(tableHeadList[3], 15, 0)
+        for item in tableHeadList[6:9]:
             print_align(item, 5, 0)
         print()
-    #print(numOfSubject, "平均绩点:%.2f" % (point / (sumPoint * 5) * 5))
+        for name in subjectMap.keys():
+            print_align(name, 15, 0)
+            for item in subjectMap[name]:
+                print_align(item, 5, 0)
+            print()
+        print(numOfSubject, "平均绩点:%.2f" % (point / (sumPoint * 5) * 5))
+    return subjectMap
 def getLoginInfo():
     info = dict()
     autoLogin = False
@@ -201,40 +215,35 @@ def parseGradesPage(result_cjcx):
     table = re.search(pattern_table, result_cjcx, re.DOTALL).group()
     tableHead = re.search(pattern_tableHead, table, re.DOTALL).group()
     tableHeadList = re.findall(r'<td>(.*?)</td>', tableHead)
-    subjectList = []
-    subjectMap=dict()
+    subjectList = list()
     table = re.sub(r'&nbsp;', ' ', table)
     for item in re.findall(pattern_subjectItem, table, re.DOTALL):
         subjectList.append(re.findall(pattern_subjectInfo, item))
-    point = 0.0
-    sumPoint = 0.0
-    for subject in subjectList:
-        point += float(subject[7]) * float(subject[6])
-        sumPoint += float(subject[6])
-        subjectMap[subject[3]]=subject[6:9]
-    numOfSubject = '共' + str(len(subjectList)) + '门课'
-    return subjectMap
-def getGrade(urlName,info):
+    return (tableHeadList,subjectList)
+def getGrade(urlName,printToScreen):
     gradePage = getGradePage(urlName)
-    subjectMap = parseGradesPage(gradePage)
+    (tableHeadList,subjectList) = parseGradesPage(gradePage)
+    subjectMap = print_subejectInfo(tableHeadList,subjectList,printToScreen)
     return subjectMap
-def getGradeThread(urlName,info,subjectMap):
+def getGradeThread(urlName,subjectMap):
     while True:
         time.sleep(20)  # 间隔时间--待修改
         print("成绩监控线程正在工作")
-        tempMap = getGrade(urlName, info)
+        string=''
+        tempMap = getGrade(urlName,False)
         if len(subjectMap) < len(tempMap):
             for item in tempMap.keys():
                 if (item not in subjectMap.keys()):
-                    # sendEmail
-                    print("新出了一门课的成绩：" + item + ":", tempMap[item])
+                    string += item + '  :  '+(tempMap[item])[2]+'\n'
+                    print(string)
                     subjectMap[item] = tempMap[item]
+            sendEmail(receiver_mail='jinbaizhe@qq.com', mail_title='又有新的成绩出来了', mail_content=string)
             with open(subjectInfo_path, 'wb') as f:
                 pickle.dump(tempMap, f)
         else:
             print("无新成绩")
         print("成绩监控线程暂停工作")
-def sendEmail(host_server, sender_qq, pwd, sender_qq_mail, receiver_mail, mail_title, mail_content):
+def sendEmail(receiver_mail='',mail_title='', mail_content='',host_server='smtp.qq.com', sender_qq='25497020', pwd='ntngqxpiegzkbgjc', sender_qq_mail='25497020@qq.com'):
     logging.info('开始发送邮件')
     # qq邮箱smtp服务器
     # sender_qq为发件人的qq号码
@@ -272,31 +281,43 @@ while state == False:
     state = login(info)
 state = False#是否已登录教务系统的状态
 while True:
-    select = input("1.查询成绩\n2.查询图书馆借书情况(尚未完成)\n3.开启成绩监控\n4.切换账号(尚未完成)\n5.退出\n")
+    select = input("1.成绩查询\n2.图书馆借书情况查询(尚未完成)\n3.一卡通查询(尚未完成)\n4.开启成绩监控\n5.切换账号\n6.设置(尚未完成)\n7.退出\n")
     if select == '1':
         while state == False:
-            info['password_jwxt'] = input('请输入教务系统密码:')
             state = loginJWXT(info)
+            if state == False:
+                info['password_jwxt'] = input('请输入教务系统密码:')
         urlName=getUrlName(state)#这里的state==urlName
-        subjectMap=getGrade(urlName,info)
-        print_subejectInfo(subjectMap)
+        subjectMap=getGrade(urlName,True)
         with open(subjectInfo_path, 'wb') as f:
             pickle.dump(subjectMap, f)
-    elif select == '3':
+    elif select == '3':#一卡通查询
+        pass
+    elif select == '4':
         if os.path.isfile(subjectInfo_path):
             with open(subjectInfo_path, 'rb') as f:
                 subjectMap = pickle.load(f)
         else:
             subjectMap = dict()
         while state == False:
-            info['password_jwxt'] = input('请输入教务系统密码:')
             state = loginJWXT(info)
+            if state == False:
+                info['password_jwxt'] = input('请输入教务系统密码:')
         urlName = getUrlName(state)
-        t = threading.Thread(target=getGradeThread,args=(urlName,info,subjectMap))
+        t = threading.Thread(target=getGradeThread,args=(urlName,subjectMap))
         t.start()
         print("成绩监控开启成功")
-    elif select == '4':
-        break
-# 保存账号信息到config.pcl中
-with open(config_path, 'wb') as f:
-    pickle.dump(info, f)
+    elif select == '5':#切换账号
+        state = False
+        while state == False:
+            info['username'] = input('请输入学号:')
+            info['password'] = input('请输入统一身份认证密码(默认为身份证后六位):')
+            info['password_jwxt'] = input('请输入教务系统密码:')
+            state = login(info)
+    elif select == '6':
+        pass
+    elif select == '7':
+        # 保存账号信息到config.pcl中
+        with open(config_path, 'wb') as f:
+            pickle.dump(info, f)
+        sys.exit()
