@@ -22,13 +22,14 @@ def print_align(text,width,align=0):
     else:
         print(' '*(width*2-numOfOthers-numOfChinese*2),end='')
         print(text,end='')
-def print_subejectInfo(subjectList):
-    for i in range(int(len(subjectList))):
-        if i == 3:
-            print_align(subjectList[i], 15, 0)
-        elif i in [6, 7, 8]:
-            print_align(subjectList[i], 5, 0)
-    print()
+def print_subejectInfo(subjectDict):
+    print(year, "学年第", term, "学期")
+    for name in subjectDict.keys():
+        print_align(name, 15, 0)
+        for item in subjectDict[name]:
+            print_align(item, 5, 0)
+        print()
+    #print(numOfSubject, "平均绩点:%.2f" % (point / (sumPoint * 5) * 5))
 def getLoginInfo():
     info = dict()
     autoLogin = False
@@ -205,35 +206,34 @@ def parseGradesPage(result_cjcx):
     table = re.sub(r'&nbsp;', ' ', table)
     for item in re.findall(pattern_subjectItem, table, re.DOTALL):
         subjectList.append(re.findall(pattern_subjectInfo, item))
-    print(year, "学年第", term, "学期")
-    print_subejectInfo(tableHeadList)
     point = 0.0
     sumPoint = 0.0
     for subject in subjectList:
-        print_subejectInfo(subject)
         point += float(subject[7]) * float(subject[6])
         sumPoint += float(subject[6])
         subjectMap[subject[3]]=subject[6:9]
     numOfSubject = '共' + str(len(subjectList)) + '门课'
-    print(numOfSubject, "平均绩点:%.2f" % (point / (sumPoint * 5) * 5))
     return subjectMap
-def getGrade(state,info):
-    while state == False:
-        info['password_jwxt'] = input('请输入教务系统密码:')
-        state = loginJWXT(info)
-    urlName = getUrlName(state)
+def getGrade(urlName,info):
     gradePage = getGradePage(urlName)
     subjectMap = parseGradesPage(gradePage)
     return subjectMap
-def getGradeThread(state,info,subjectMap):
-    tempMap = getGrade(state,info)
-    if len(subjectMap)<len(tempMap):
-        for item in tempMap.keys():
-            if(item not in subjectMap.keys()):
-                #sendEmail
-                print("新出了一门课的成绩："+item+":",tempMap[item])
-                subjectMap[item]=tempMap[item]
-    time.sleep(3*60)
+def getGradeThread(urlName,info,subjectMap):
+    while True:
+        time.sleep(20)  # 间隔时间--待修改
+        print("成绩监控线程正在工作")
+        tempMap = getGrade(urlName, info)
+        if len(subjectMap) < len(tempMap):
+            for item in tempMap.keys():
+                if (item not in subjectMap.keys()):
+                    # sendEmail
+                    print("新出了一门课的成绩：" + item + ":", tempMap[item])
+                    subjectMap[item] = tempMap[item]
+            with open(subjectInfo_path, 'wb') as f:
+                pickle.dump(tempMap, f)
+        else:
+            print("无新成绩")
+        print("成绩监控线程暂停工作")
 def sendEmail(host_server, sender_qq, pwd, sender_qq_mail, receiver_mail, mail_title, mail_content):
     logging.info('开始发送邮件')
     # qq邮箱smtp服务器
@@ -261,6 +261,7 @@ cookie = http.cookiejar.CookieJar()
 handler = urllib.request.HTTPCookieProcessor(cookie)
 opener = urllib.request.build_opener(handler)
 config_path = 'config.pcl'
+subjectInfo_path='SubjectInfo.pcl'
 year='2016-2017'
 term='2'
 info=getLoginInfo()
@@ -273,11 +274,27 @@ state = False#是否已登录教务系统的状态
 while True:
     select = input("1.查询成绩\n2.查询图书馆借书情况(尚未完成)\n3.开启成绩监控\n4.切换账号(尚未完成)\n5.退出\n")
     if select == '1':
-        getGrade(state,info)
+        while state == False:
+            info['password_jwxt'] = input('请输入教务系统密码:')
+            state = loginJWXT(info)
+        urlName=getUrlName(state)#这里的state==urlName
+        subjectMap=getGrade(urlName,info)
+        print_subejectInfo(subjectMap)
+        with open(subjectInfo_path, 'wb') as f:
+            pickle.dump(subjectMap, f)
     elif select == '3':
-        subjectMap = getGrade(state,info)
-        t = threading.Thread(target=getGradeThread,args=(state,info,subjectMap))
+        if os.path.isfile(subjectInfo_path):
+            with open(subjectInfo_path, 'rb') as f:
+                subjectMap = pickle.load(f)
+        else:
+            subjectMap = dict()
+        while state == False:
+            info['password_jwxt'] = input('请输入教务系统密码:')
+            state = loginJWXT(info)
+        urlName = getUrlName(state)
+        t = threading.Thread(target=getGradeThread,args=(urlName,info,subjectMap))
         t.start()
+        print("成绩监控开启成功")
     elif select == '4':
         break
 # 保存账号信息到config.pcl中
