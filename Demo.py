@@ -192,6 +192,42 @@ def getGradeThread(urlName,subjectMap):
         else:
             print("无新成绩")
         print("成绩监控线程暂停工作")
+def getCardInfo():
+    opener.open('http://ecard.zust.edu.cn.ez.zust.edu.cn/zghyportalHome.action')
+    headers = {
+        'Accept' : 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Encoding' : 'gzip, deflate',
+        'Accept-Language' : 'zh-CN,zh;q=0.8',
+        'Connection' : 'keep-alive',
+        'Host' : 'ecard.zust.edu.cn.ez.zust.edu.cn',
+        'Referer' : 'http://ecard.zust.edu.cn.ez.zust.edu.cn/accleftframe.action',
+        'Upgrade-Insecure-Requests' : '1',
+        'User-Agent' : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36'
+    }
+    request = urllib.request.Request('http://ecard.zust.edu.cn.ez.zust.edu.cn/accountcardUser.action',headers=headers)
+    response =opener.open(request)
+    result = response.read().decode('utf-8','ignore')
+    pattern = r'余&nbsp;&nbsp;&nbsp;&nbsp;额.*?<td class="neiwen">(.*?)</td>'
+    match = re.search(pattern,result,re.DOTALL)
+    return match.group(1)
+def getLibraryInfo():
+    opener.open('http://my.lib.zust.edu.cn.ez.zust.edu.cn/idstar.aspx')
+    headers = {
+        'Accept' : 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Encoding' : 'gzip, deflate',
+        'Accept-Language' : 'zh-CN,zh;q=0.8',
+        'Connection' : 'keep-alive',
+        'Host' : 'my.lib.zust.edu.cn.ez.zust.edu.cn',
+        'Referer' : 'http://my.lib.zust.edu.cn.ez.zust.edu.cn/Borrowing.aspx',
+        'Upgrade-Insecure-Requests' : '1',
+        'User-Agent' : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36'
+    }
+    request = urllib.request.Request('http://my.lib.zust.edu.cn.ez.zust.edu.cn/Borrowing.aspx',headers=headers)
+    response =opener.open(request)
+    result = response.read().decode('utf-8','ignore')
+    pattern = r''
+    match = re.search(pattern,result)
+    #return match.group(1)
 def sendEmail(receiver_mail='',mail_title='', mail_content='',host_server='smtp.qq.com', sender_qq='25497020', pwd='ntngqxpiegzkbgjc', sender_qq_mail='25497020@qq.com'):
     # qq邮箱smtp服务器
     # sender_qq为发件人的qq号码
@@ -215,27 +251,29 @@ cookie = http.cookiejar.CookieJar()
 handler = urllib.request.HTTPCookieProcessor(cookie)
 opener = urllib.request.build_opener(handler)
 config_path = 'config.pcl'
-subjectInfo_path='SubjectInfo.pcl'
-year='2016-2017'
-term='2'
-urlName=''
-info=getLoginInfo()
-state=login(info)
-while state == False:
+subjectInfo_path = 'SubjectInfo.pcl'
+year = '2016-2017'
+term = '2'
+urlName = ''
+info = getLoginInfo()
+state = login(info)
+while not state:
     info['username'] = input('请重新输入学号:')
     info['password'] = input('请重新输入统一身份认证密码(默认身份证后六位):')
     state = login(info)
 loginZHFW(info)
 while True:
-    select = input("1.成绩查询\n2.图书馆借书情况查询(尚未完成)\n3.一卡通查询(尚未完成)\n4.开启成绩监控\n5.切换账号\n6.设置(尚未完成)\n7.退出\n")
+    select = input("1.成绩查询\n2.图书馆借书情况查询(尚未完成)\n3.一卡通查询\n4.开启成绩监控\n5.切换账号\n6.设置(尚未完成)\n7.退出\n")
     if select == '1':
         result = loginJWXT()
         urlName=getUrlName(result)
         subjectMap=getGrade(urlName,True)
         with open(subjectInfo_path, 'wb') as f:
             pickle.dump(subjectMap, f)
+    elif select == '2':  # 图书馆借书情况查询
+        getLibraryInfo()
     elif select == '3':#一卡通查询
-        pass
+        print(getCardInfo())
     elif select == '4':
         if os.path.isfile(subjectInfo_path):
             with open(subjectInfo_path, 'rb') as f:
@@ -262,3 +300,4 @@ while True:
         with open(config_path, 'wb') as f:
             pickle.dump(info, f)
         sys.exit()
+    input("输入回车返回上级菜单")
