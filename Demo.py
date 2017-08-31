@@ -1,13 +1,13 @@
 import urllib,http.cookiejar
-import sys,os,pickle,re,threading,time
+import sys,os,pickle,re,threading,time,io
 from email.mime.text import MIMEText
 from email.header import Header
 from smtplib import SMTP_SSL
+from bs4 import BeautifulSoup
 def print_align(text,width,align=0):
     if len(text)>width:
-        print(text,end='')
-        return
-    numOfChinese=len(re.findall('[\u4e00-\u9fa5]',text))
+        text=text[:(width-3)]+'...'
+    numOfChinese=len(re.findall('[\u2E80-\uFE4F]',text))
     numOfOthers = len(text) - numOfChinese
     if align==0:
         print(text,end='')
@@ -224,10 +224,18 @@ def getLibraryInfo():
     }
     request = urllib.request.Request('http://my.lib.zust.edu.cn.ez.zust.edu.cn/Borrowing.aspx',headers=headers)
     response =opener.open(request)
-    result = response.read().decode('utf-8','ignore')
-    pattern = r''
-    match = re.search(pattern,result)
-    #return match.group(1)
+    result = response.read().decode('utf8')
+    soup = BeautifulSoup(result, 'html.parser')
+    table=str(soup.find('table',id="ctl00_ContentPlaceHolder1_GridView1"))
+    pattern = r'<table.*?<a.*?>(.*?)<.*?借书时间.*?>(.*?)<.*?应还日期.*?>(.*?)<.*?续借次数.*?>(.*?)<.*?超期情况.*?>(.*?)<.*?</table>'
+    match = re.findall(pattern,table,re.DOTALL)
+    for item in ['书名','借书时间','应还日期','续借次数','超期情况']:
+        print_align(item, 13, 0)
+    print()
+    for book in match:
+        for item in book:
+            print_align(item,13,0)
+        print()
 def sendEmail(receiver_mail='',mail_title='', mail_content='',host_server='smtp.qq.com', sender_qq='25497020', pwd='ntngqxpiegzkbgjc', sender_qq_mail='25497020@qq.com'):
     # qq邮箱smtp服务器
     # sender_qq为发件人的qq号码
@@ -247,6 +255,8 @@ def sendEmail(receiver_mail='',mail_title='', mail_content='',host_server='smtp.
     msg["To"] = receiver_mail
     smtp.sendmail(sender_qq_mail, receiver_mail, msg.as_string())
     smtp.quit()
+
+sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf8')
 cookie = http.cookiejar.CookieJar()
 handler = urllib.request.HTTPCookieProcessor(cookie)
 opener = urllib.request.build_opener(handler)
@@ -263,7 +273,7 @@ while not state:
     state = login(info)
 loginZHFW(info)
 while True:
-    select = input("1.成绩查询\n2.图书馆借书情况查询(尚未完成)\n3.一卡通查询\n4.开启成绩监控\n5.切换账号\n6.设置(尚未完成)\n7.退出\n")
+    select = input("1.成绩查询\n2.图书馆借书情况查询\n3.一卡通查询\n4.开启成绩监控\n5.切换账号\n6.设置(尚未完成)\n7.退出\n")
     if select == '1':
         result = loginJWXT()
         urlName=getUrlName(result)
