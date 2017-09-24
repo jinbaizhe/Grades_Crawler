@@ -4,6 +4,7 @@ from email.mime.text import MIMEText
 from email.header import Header
 from smtplib import SMTP_SSL
 from bs4 import BeautifulSoup
+from configparser import ConfigParser
 def print_align(text,width,align=0):
     if len(text)>width:
         text=text[:(width-3)]+'...'
@@ -25,7 +26,7 @@ def print_subejectInfo(tableHeadList,subjectList,printToScreen):
         point += float(subject[7]) * float(subject[6])
         sumPoint += float(subject[6])
     if printToScreen:
-        print(year, "学年第", term, "学期")
+        print(info['year'], "学年第", info['term'], "学期")
         print_align(tableHeadList[3], 15, 0)
         for item in tableHeadList[6:9]:
             print_align(item, 5, 0)
@@ -40,9 +41,13 @@ def print_subejectInfo(tableHeadList,subjectList,printToScreen):
 def getLoginInfo():
     info = dict()
     autoLogin = False
+    cfg=ConfigParser()
     if os.path.isfile(config_path):
-        with open(config_path, 'rb') as f:
-            info = pickle.load(f)
+        cfg.read(config_path)
+        info['username']=cfg.get('Login','account')
+        info['password']=cfg.get('Login','password')
+        info['year'] = cfg.get('Grade', 'year')
+        info['term'] = cfg.get('Grade', 'term')
         if len(info['username']) > 0 and len(info['password']) > 0:
             print('已检测到保存过的学号信息:' + info['username'])
             temp = input('是否用此学号登录?(y/n):')
@@ -51,6 +56,17 @@ def getLoginInfo():
     if not autoLogin:
         info['username'] = input('请输入学号:')
         info['password'] = input('请输入统一身份认证密码(默认身份证后六位):')
+        info['year'] = '2016-2017'
+        info['term'] = '2'
+    if not os.path.isfile(config_path):
+        cfg.add_section('Login')
+        cfg.add_section('Grade')
+        cfg.set('Login', 'account', info['username'])
+        cfg.set('Login', 'password', info['password'])
+        cfg.set('Grade', 'year', info['year'])
+        cfg.set('Grade', 'term', info['term'])
+        with open(config_path, 'w+') as f:
+            cfg.write(f)
     return info
 def login(info):
     postData = {
@@ -106,7 +122,6 @@ def loginZHFW(info):#登录综合服务
     data = urllib.parse.urlencode(postData).encode(encoding='utf-8')
     request = urllib.request.Request('http://my.zust.edu.cn.ez.zust.edu.cn/userPasswordValidate.portal', data, headers)
     response = opener.open(request)
-    result = response.read().decode('utf-8', 'ignore')
 def loginJWXT():
     response = opener.open('http://jwxt.zust.edu.cn.ez.zust.edu.cn/default_zzjk.aspx')
     result = response.read().decode()
@@ -134,8 +149,8 @@ def getGradePage(urlName):
 
     postData_cjcx = {
         '__VIEWSTATE': viewstate,
-        'ddlXN': year,
-        'ddlXQ': term,
+        'ddlXN': info['year'],
+        'ddlXQ': info['term'],
         'Button1': '按学期查询',
     }
     headers_cjcx = {
@@ -176,7 +191,7 @@ def getGrade(urlName,printToScreen):
     return subjectMap
 def getGradeThread(urlName,subjectMap):
     while True:
-        time.sleep(60)  # 间隔时间--待修改
+        time.sleep(60*5)  # 间隔时间--待修改
         print("成绩监控线程正在工作")
         string=''
         tempMap = getGrade(urlName,False)
@@ -260,16 +275,13 @@ sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf8')
 cookie = http.cookiejar.CookieJar()
 handler = urllib.request.HTTPCookieProcessor(cookie)
 opener = urllib.request.build_opener(handler)
-config_path = 'config.pcl'
+config_path = 'config.ini'
 subjectInfo_path = 'SubjectInfo.pcl'
-year = '2016-2017'
-term = '2'
 urlName = ''
 info = getLoginInfo()
 state = login(info)
 while not state:
-    info['username'] = input('请重新输入学号:')
-    info['password'] = input('请重新输入统一身份认证密码(默认身份证后六位):')
+    getLoginInfo()
     state = login(info)
 loginZHFW(info)
 while True:
@@ -299,15 +311,11 @@ while True:
     elif select == '5':#切换账号
         state = False
         while state == False:
-            info['username'] = input('请输入学号:')
-            info['password'] = input('请输入统一身份认证密码(默认身份证后六位):')
+            getLoginInfo()
             state = login(info)
         loginZHFW(info)
     elif select == '6':
         pass
     elif select == '7':
-        # 保存账号信息到config.pcl中
-        with open(config_path, 'wb') as f:
-            pickle.dump(info, f)
         sys.exit()
     input("输入回车返回上级菜单")
