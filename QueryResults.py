@@ -1,11 +1,12 @@
 import urllib,http.cookiejar
-import sys,os,pickle,re,threading,time,io
+import sys,os,pickle,re,threading,io
 from email.mime.text import MIMEText
 from email.header import Header
 from smtplib import SMTP_SSL
-from bs4 import BeautifulSoup
 from configparser import ConfigParser
-import time
+import time,logging
+
+
 def print_align(text,width,align=0):
     if len(text)>width:
         text=text[:(width-3)]+'...'
@@ -17,6 +18,8 @@ def print_align(text,width,align=0):
     else:
         print(' '*(width*2-numOfOthers-numOfChinese*2),end='')
         print(text,end='')
+
+
 def print_subejectInfo(tableHeadList,subjectList,printToScreen):
     point = 0.0
     sumPoint = 0.0
@@ -42,6 +45,8 @@ def print_subejectInfo(tableHeadList,subjectList,printToScreen):
         else:
             print('暂时无成绩')
     return subjectMap
+
+
 def getLoginInfo():
     info = dict()
     autoLogin = False
@@ -50,58 +55,33 @@ def getLoginInfo():
         cfg.read(config_path)
         info['username']=cfg.get('Login','account')
         info['password']=cfg.get('Login','password')
+        info['email']=cfg.get('Login','email')
         info['year'] = cfg.get('Grade', 'year')
         info['term'] = cfg.get('Grade', 'term')
         if len(info['username']) > 0 and len(info['password']) > 0:
-            print('已检测到保存过的学号信息:' + info['username'],flush=True)
-            print('正在用此学号登录...',flush=True)
+            print(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()) +':' +'已检测到保存过的学号信息:' + info['username'],flush=True)
+            print(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()) +':' +'正在用此学号登录...',flush=True)
             autoLogin = True
     if not autoLogin:
         info['username'] = input('请输入学号:')
         info['password'] = input('请输入统一身份认证密码(默认身份证后六位):')
-        info['year'] = '2016-2017'
-        info['term'] = '2'
+        info['email'] = input('请输入接受成绩通知的邮箱:')
+        info['year'] = input('请输入学年(例如:2017-2018):')
+        info['term'] = input('请输入学期(例如:1):')
     if not os.path.isfile(config_path):
         cfg.add_section('Login')
         cfg.add_section('Grade')
         cfg.set('Login', 'account', info['username'])
         cfg.set('Login', 'password', info['password'])
+        cfg.set('Login', 'email', info['email'])
         cfg.set('Grade', 'year', info['year'])
         cfg.set('Grade', 'term', info['term'])
         with open(config_path, 'w+') as f:
             cfg.write(f)
     return info
-def login(info):
-    postData = {
-        'user': info['username'],
-        'pass': info['password'],
-        'inputCode': '1234',
-        'url': 'http://my.zust.edu.cn/login',
-    }
-    headers = {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Accept-Language': 'zh-CN,zh;q=0.8',
-        'Cache-Control': 'max-age=0',
-        'Connection': 'keep-alive',
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Host': 'ez.zust.edu.cn',
-        'Origin': 'https://ez.zust.edu.cn',
-        'Referer': 'https://ez.zust.edu.cn/login?url=http://my.zust.edu.cn/',
-        'Upgrade-Insecure-Requests': '1',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36',
-    }
-    data = urllib.parse.urlencode(postData).encode(encoding='utf-8')
-    request = urllib.request.Request('https://ez.zust.edu.cn/login', data, headers)
-    response = opener.open(request)
-    result = response.read().decode('utf-8', 'ignore')
-    pattern = r'<DIV id="errmsg".*?>(.*?)</DIV>'
-    match = re.search(pattern,result)
-    if match:
-        print(match.group(1))
-        return False
-    return result
-def loginZHFW(info):#登录综合服务
+
+
+def loginZHFW(info,opener):#登录综合服务
     request = urllib.request.Request('http://authserver.zust.edu.cn/authserver/login?service=http://my.zust.edu.cn.ez.zust.edu.cn')
     response = opener.open(request)
     result = response.read().decode('utf-8', 'ignore')
@@ -134,15 +114,21 @@ def loginZHFW(info):#登录综合服务
     data = urllib.parse.urlencode(postData).encode()
     request = urllib.request.Request('http://authserver.zust.edu.cn/authserver/login?service=http://my.zust.edu.cn.ez.zust.edu.cn', data, headers)
     response = opener.open(request)
-def loginJWXT():
+
+
+def loginJWXT(opener):
     response = opener.open('http://jwxt.zust.edu.cn.ez.zust.edu.cn/default_zzjk.aspx')
     result = response.read().decode()
     return result
+
+
 def getUrlName(result):
     pattern_info = '<span id="xhxm">\d*\s*(\w*)</span></em>'
     return urllib.request.quote(re.search(pattern_info, result).group(1))
-def getGradePage(urlName):
-    url_cjcx = 'http://jwxt.zust.edu.cn.ez.zust.edu.cn/xscj_gc.aspx?xh=' + info['username'] + '&xm=' + urlName + '&gnmkdm=N121616'
+
+
+def getGradePage(urlName,opener):
+    url_cjcx = 'http://jwxt.zust.edu.cn.ez.zust.edu.cn/xscjcx.aspx?xh=' + info['username'] + '&xm=' + urlName + '&gnmkdm=N121605'
     headers = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
         'Accept-Encoding': 'gzip, deflate',
@@ -156,14 +142,20 @@ def getGradePage(urlName):
     request = urllib.request.Request(url_cjcx, headers=headers)
     response = opener.open(request)
     result = response.read().decode()
-    pattern_viewstate = r'<input type="hidden" name="__VIEWSTATE" value="(.*?)"'
+    pattern_viewstate = r'<input[^>]*name="__VIEWSTATE"[^>]*value="(.*?)"'
+    pattern_eventvalidation = r'<input[^>]*name="__EVENTVALIDATION"[^>]*value="(.*?)"'
     viewstate = re.search(pattern_viewstate, result).group(1)
-
+    eventvalidation = re.search(pattern_eventvalidation, result).group(1)
     postData_cjcx = {
+        '__EVENTTARGET': "",
+        '__EVENTARGUMENT': "",
         '__VIEWSTATE': viewstate,
+        '__EVENTVALIDATION': eventvalidation,
+        'hidLanguage': "",
         'ddlXN': info['year'],
         'ddlXQ': info['term'],
-        'Button1': '按学期查询',
+        'ddl_kcxz': "",
+        'btn_xq': '学期成绩',
     }
     headers_cjcx = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
@@ -182,8 +174,10 @@ def getGradePage(urlName):
     request_cjcx = urllib.request.Request(url_cjcx, data_cjcx, headers_cjcx)
     response = opener.open(request_cjcx)
     return response.read().decode('utf-8')
+
+
 def parseGradesPage(result_cjcx):
-    pattern_table = r'<table class="datelist" cellspacing="0" cellpadding="3" border="0" id="Datagrid1" width="100%">(.*?)</table>'
+    pattern_table = r'<table class="datelist"[^>]*>(.*?)</table>'
     pattern_tableHead = r'<tr class="datelisthead">(.*?)</tr>'
     pattern_subjectItem = r'(?:<tr>|<tr class="alt">)(.*?)</tr>'
     pattern_subjectInfo = r'<td>(.*?)</td>'
@@ -196,82 +190,58 @@ def parseGradesPage(result_cjcx):
     for item in re.findall(pattern_subjectItem, table, re.DOTALL):
         subjectList.append(re.findall(pattern_subjectInfo, item))
     return (tableHeadList,subjectList)
-def getGrade(urlName,printToScreen):
-    gradePage = getGradePage(urlName)
-    (tableHeadList,subjectList) = parseGradesPage(gradePage)
+
+
+def getGrade(urlName,printToScreen,opener):
+    gradePage = getGradePage(urlName, opener)
+    (tableHeadList, subjectList) = parseGradesPage(gradePage)
     subjectMap = print_subejectInfo(tableHeadList,subjectList,printToScreen)
     return subjectMap
-def getGradeThread(urlName,subjectMap):
-    print("成绩监控开启成功",flush=True)
+
+
+def logoutJWXT(opener):
+    response = opener.open('http://jwxt.zust.edu.cn.ez.zust.edu.cn/default_ldap.aspx')
+
+
+def logoutZHFW(opener):
+    response = opener.open('http://authserver.zust.edu.cn.ez.zust.edu.cn/authserver/logout?service=http://my.zust.edu.cn.ez.zust.edu.cn/')
+
+
+def getGradeThread(subjectMap):
+    logging.info(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()) + ':Thread is running')
     while True:
+        cookie = http.cookiejar.CookieJar()
+        handler = urllib.request.HTTPCookieProcessor(cookie)
+        opener = urllib.request.build_opener(handler)
         string=''
         try:
-            tempMap = getGrade(urlName,False)
+            loginZHFW(info, opener)
+            result = loginJWXT(opener)
+            urlName = getUrlName(result)
+            tempMap = getGrade(urlName,False,opener)
             if len(subjectMap) < len(tempMap):
                 for item in tempMap.keys():
                     if (item not in subjectMap.keys()):
                         string += item + '  :  ' + (tempMap[item])[2] + '\n'
                         subjectMap[item] = tempMap[item]
-                print(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()) +':' +string, flush=True)
-                sendEmail(receiver_mail='jinbaizhe@qq.com', mail_title='又有新的成绩出来了', mail_content=string)
+                logging.info(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()) +':' +'New grades coming')
+                sendEmail(receiver_mail=info["email"], mail_title='又有新的成绩出来了', mail_content=string)
                 with open(subjectInfo_path, 'wb') as f:
                     pickle.dump(tempMap, f)
             else:
-                print(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()) + ":无新成绩", flush=True)
-        except Exception as e1:
-            print(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()) + ":查询成绩时出错,错误信息:" + str(e1), flush=True)
-            print("正在尝试重新登录",flush=True)
+                logging.info(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()) + ":It's up to date")
+        except Exception as e:
+            logging.info(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()) + ":Error message:" + str(e))
+        finally:
             try:
-                loginZHFW(info)
-                print(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()) + ":重新登录成功")
-            except Exception as e2:
-                print(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()) + ":重新登录失败"+"，错误信息:" + str(e2), flush=True)
-        time.sleep(60 * 5)  # 间隔时间--待修改
-def getCardInfo():
-    opener.open('http://ecard.zust.edu.cn.ez.zust.edu.cn/zghyportalHome.action')
-    headers = {
-        'Accept' : 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Encoding' : 'gzip, deflate',
-        'Accept-Language' : 'zh-CN,zh;q=0.8',
-        'Connection' : 'keep-alive',
-        'Host' : 'ecard.zust.edu.cn.ez.zust.edu.cn',
-        'Referer' : 'http://ecard.zust.edu.cn.ez.zust.edu.cn/accleftframe.action',
-        'Upgrade-Insecure-Requests' : '1',
-        'User-Agent' : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36'
-    }
-    request = urllib.request.Request('http://ecard.zust.edu.cn.ez.zust.edu.cn/accountcardUser.action',headers=headers)
-    response =opener.open(request)
-    result = response.read().decode('utf-8','ignore')
-    pattern = r'余&nbsp;&nbsp;&nbsp;&nbsp;额.*?<td class="neiwen">(.*?)</td>'
-    match = re.search(pattern,result,re.DOTALL)
-    return match.group(1)
-def getLibraryInfo():
-    opener.open('http://my.lib.zust.edu.cn.ez.zust.edu.cn/idstar.aspx')
-    headers = {
-        'Accept' : 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Encoding' : 'gzip, deflate',
-        'Accept-Language' : 'zh-CN,zh;q=0.8',
-        'Connection' : 'keep-alive',
-        'Host' : 'my.lib.zust.edu.cn.ez.zust.edu.cn',
-        'Referer' : 'http://my.lib.zust.edu.cn.ez.zust.edu.cn/Borrowing.aspx',
-        'Upgrade-Insecure-Requests' : '1',
-        'User-Agent' : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36'
-    }
-    request = urllib.request.Request('http://my.lib.zust.edu.cn.ez.zust.edu.cn/Borrowing.aspx',headers=headers)
-    response =opener.open(request)
-    result = response.read().decode('utf8')
-    soup = BeautifulSoup(result, 'html.parser')
-    table=str(soup.find('table',id="ctl00_ContentPlaceHolder1_GridView1"))
-    pattern = r'<table.*?<a.*?>(.*?)<.*?借书时间.*?>(.*?)<.*?应还日期.*?>(.*?)<.*?续借次数.*?>(.*?)<.*?超期情况.*?>(.*?)<.*?</table>'
-    match = re.findall(pattern,table,re.DOTALL)
-    for item in ['书名','借书时间','应还日期','续借次数','超期情况']:
-        print_align(item, 13, 0)
-    print()
-    for book in match:
-        for item in book:
-            print_align(item,13,0)
-        print()
-def sendEmail(receiver_mail='',mail_title='', mail_content='',host_server='smtp.qq.com', sender_qq='25497020', pwd='ntngqxpiegzkbgjc', sender_qq_mail='25497020@qq.com'):
+                logoutJWXT(opener)
+                logoutZHFW(opener)
+            except Exception as e:
+                logging.info(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()) + ":Error message:" + str(e))
+        time.sleep(60 * 5)
+
+
+def sendEmail(receiver_mail='',mail_title='', mail_content='', host_server='smtp.qq.com', sender_qq='25497020', pwd='ntngqxpiegzkbgjc', sender_qq_mail='25497020@qq.com'):
     # qq邮箱smtp服务器
     # sender_qq为发件人的qq号码
     # pwd为qq邮箱的授权码
@@ -291,61 +261,21 @@ def sendEmail(receiver_mail='',mail_title='', mail_content='',host_server='smtp.
     smtp.sendmail(sender_qq_mail, receiver_mail, msg.as_string())
     smtp.quit()
 
-sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf8')
-cookie = http.cookiejar.CookieJar()
-handler = urllib.request.HTTPCookieProcessor(cookie)
-opener = urllib.request.build_opener(handler)
-config_path = 'config.ini'
-subjectInfo_path = 'SubjectInfo.pcl'
-urlName = ''
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf8')
+config_path = './config.ini'
+subjectInfo_path = './SubjectInfo.pcl'
+date_string = time.strftime("%Y-%m-%d")
+filename = './thread.'+date_string+'.log'
+logging.basicConfig(filename=filename, level=logging.INFO, filemode='a')
 info = getLoginInfo()
-# state = login(info)
-# while not state:
-#     getLoginInfo()
-#     state = login(info)
-state=False
-while state==False:
-    try:
-        loginZHFW(info)
-        state=True
-    except Exception as e:
-        state=False
-        print(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()) + ":登录失败，将于3分钟后重试", flush=True)
-        print("错误信息:"+str(e),flush=True)
-        time.sleep(3*60)
-while True:
-    select = input("1.成绩查询\n2.图书馆借书情况查询\n3.一卡通查询\n4.开启成绩监控\n5.切换账号\n6.设置(尚未完成)\n7.退出\n")
-    if select == '1':
-        result = loginJWXT()
-        # print(result);
-        urlName=getUrlName(result)
-        subjectMap=getGrade(urlName,True)
-        with open(subjectInfo_path, 'wb') as f:
-            pickle.dump(subjectMap, f)
-    elif select == '2':  # 图书馆借书情况查询
-        getLibraryInfo()
-    elif select == '3':#一卡通查询
-        print(getCardInfo())
-    elif select == '4':
-        if os.path.isfile(subjectInfo_path):
-            with open(subjectInfo_path, 'rb') as f:
-                subjectMap = pickle.load(f)
-        else:
-            subjectMap = dict()
-        if urlName == '':
-            result = loginJWXT()
-            urlName = getUrlName(result)
-        t = threading.Thread(target=getGradeThread,args=(urlName,subjectMap))
-        t.start()
-        break
-    elif select == '5':#切换账号
-        state = False
-        while state == False:
-            getLoginInfo()
-            state = login(info)
-        loginZHFW(info)
-    elif select == '6':
-        pass
-    elif select == '7':
-        sys.exit()
-    input("输入回车返回上级菜单")
+
+if os.path.isfile(subjectInfo_path):
+    with open(subjectInfo_path, 'rb') as f:
+        subjectMap = pickle.load(f)
+else:
+    subjectMap = dict()
+
+t = threading.Thread(target=getGradeThread, args=(subjectMap,), daemon=True)
+t.start()
+t.join()
