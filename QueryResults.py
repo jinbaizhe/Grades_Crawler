@@ -145,7 +145,10 @@ def getGradePage(urlName,opener):
     pattern_viewstate = r'<input[^>]*name="__VIEWSTATE"[^>]*value="(.*?)"'
     pattern_eventvalidation = r'<input[^>]*name="__EVENTVALIDATION"[^>]*value="(.*?)"'
     viewstate = re.search(pattern_viewstate, result).group(1)
-    eventvalidation = re.search(pattern_eventvalidation, result).group(1)
+    if re.search(pattern_eventvalidation, result) != None:
+        eventvalidation = re.search(pattern_eventvalidation, result).group(1)
+    else:
+        eventvalidation = ""
     postData_cjcx = {
         '__EVENTTARGET': "",
         '__EVENTARGUMENT': "",
@@ -195,7 +198,7 @@ def parseGradesPage(result_cjcx):
 def getGrade(urlName,printToScreen,opener):
     gradePage = getGradePage(urlName, opener)
     (tableHeadList, subjectList) = parseGradesPage(gradePage)
-    subjectMap = print_subejectInfo(tableHeadList,subjectList,printToScreen)
+    subjectMap = print_subejectInfo(tableHeadList, subjectList,printToScreen)
     return subjectMap
 
 
